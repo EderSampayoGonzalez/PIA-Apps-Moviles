@@ -18,9 +18,9 @@
         {
           "motionPermission": "Allow $(PRODUCT_NAME) to access motion sensors."
         }
-      ]
+      ],
+      "expo-audio"
     ],
-
     "ios": {
       "supportsTablet": true
     },
