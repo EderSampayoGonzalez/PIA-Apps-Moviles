@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, Button, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useAudioPlayer } from 'expo-audio';
+import { getFraseAleatoria } from './Frase';
 
 const cookieCrackSound = require('./assets/galleta1.mp3');
 
@@ -15,6 +16,10 @@ export default function App() {
   let [hp, setHp] = useState(30);
   const [boxColor, setBoxColor] = useState('skyblue');
   const audioPlayer = useAudioPlayer(cookieCrackSound);
+
+  // state to hold fetched phrase when cookie breaks
+  const [frase, setFrase] = useState(null);
+  const [loadingFrase, setLoadingFrase] = useState(false);
 
   const reproducirSonido = () => {
     //no reproducir si el audioPlayer no está listo o está reproduciendo
@@ -98,12 +103,43 @@ export default function App() {
     }
   };
 
+  // fetch a phrase when HP drops to 0 (or below)
+  useEffect(() => {
+    let mounted = true;
+    if (hp <= 0) {
+      setLoadingFrase(true);
+      (async () => {
+        const f = await getFraseAleatoria();
+        if (mounted) {
+          setFrase(f);
+          setLoadingFrase(false);
+        }
+      })();
+    } else {
+      // reset phrase when cookie is alive again
+      setFrase(null);
+      setLoadingFrase(false);
+    }
+    return () => { mounted = false; };
+  }, [hp]);
+
   if (hp <= 0) {
     return (
       <View style={[styles.container, {backgroundColor: 'black'}]}>
-        <Text style={{color: 'white', fontSize: 30, fontWeight: 'bold', textAlign: 'center'}}>
-          ¡La galleta de la fortuna se ha roto! {"\n"}
+        <Text style={{color: 'white', fontSize: 30, fontWeight: 'bold', textAlign: 'center', marginBottom: 12}}>
+          ¡La galleta de la fortuna se ha roto!
         </Text>
+        {loadingFrase && <Text style={{color: 'white'}}>Cargando frase...</Text>}
+        {frase && (
+          <>
+            <Text style={{color: 'white', fontSize: 18, textAlign: 'center', marginTop: 10}}>
+              "{frase.frase}"
+            </Text>
+            <Text style={{color: 'white', fontSize: 14, textAlign: 'center', marginTop: 6}}>
+              — {frase.autor}
+            </Text>
+          </>
+        )}
         <Button 
           title="Reiniciar Galleta"
           onPress={() => {
