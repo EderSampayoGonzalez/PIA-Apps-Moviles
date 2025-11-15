@@ -1,11 +1,18 @@
 import { Accelerometer } from 'expo-sensors';
 import { useState, useEffect, useRef } from 'react';
-import { View, Image, Text, Button, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Image, Text, Button, StyleSheet } from 'react-native';
+//import { Animated, Easing } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useAudioPlayer } from 'expo-audio';
 import { getFraseAleatoria } from './Frase';
+import Animated, { useSharedValue,
+        withTiming,
+        useAnimatedStyle,
+        withRepeat,
+        withSequence,
+        Easing } from 'react-native-reanimated';
 
-const cookieCrackSound = require('./assets/galleta1.mp3');
+const cookieCrackSound = require('./assets/Galleta_rompiendo_1.wav');
 
 export default function App() {
   const [playing, setPlaying] = useState(false);
@@ -15,7 +22,7 @@ export default function App() {
   const [motionData, setMotionData] = useState(null);
 
   // Configuraciones de la galleta de la fortuna
-  let [hp, setHp] = useState(30);
+  let [hp, setHp] = useState(12);
   const [boxColor, setBoxColor] = useState('skyblue');
   const audioPlayer = useAudioPlayer(cookieCrackSound);
 
@@ -28,53 +35,59 @@ export default function App() {
   const [isShaking, setIsShaking] = useState(false);
   const [inNormalRange, setInNormalRange] = useState(true);
 
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  // referencia para la animación de sacudida
   const isShakingRef = useRef(false);
+  const shakeAnim = useSharedValue(0);
 
-  shakeAnim.addListener(({ value }) => {
-    console.log("shakeAnim value:", value);
-  });
+  //configuración de animación de flotar
+  const floatAnim = useSharedValue(0);
 
-
+  
   const frames = [
-    require('./assets/cookie-1.png'),
-    require('./assets/cookie-2.png'),
-    require('./assets/cookie-3.png'),
-    require('./assets/cookie-4.png'),
-    require('./assets/cookie-5.png'),
-    require('./assets/cookie-6.png'),
+    require('./assets/Galleta_cerrada-1.png'),
+    require('./assets/Galleta_cerrada-2.png'),
+    require('./assets/Galleta_abierta-1.png'),
+    require('./assets/Galleta_abierta-2.png'),
   ];
 
+  // Animación de flotar (vertical)
+  useEffect(() => {
+    floatAnim.value = withRepeat(
+      withTiming(-20, {
+        duration: 2000,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true
+    );
+  }, [floatAnim]);
+
+  // Animación de sacudir (horizontal)
   const startShake = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shakeAnim, {
-          toValue: 30,
-          duration: 50,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shakeAnim, {
-          toValue: -30,
-          duration: 50,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shakeAnim, {
-          toValue: 0,
-          duration: 50,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    shakeAnim.value = withRepeat(
+      withSequence(
+        withTiming(30, { duration: 50, easing: Easing.linear }),
+        withTiming(-30, { duration: 100, easing: Easing.linear }),
+        withTiming(0, { duration: 50, easing: Easing.linear })
+      ),
+      3, // numero de sacuridas
+      false
+    );
   };
 
   const stopShake = () => {
-    shakeAnim.stopAnimation();
-    shakeAnim.setValue(0);
+    shakeAnim.value = withTiming(0, { duration: 100 });
     isShakingRef.current = false;
-  };
+  }
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: shakeAnim.value },
+        { translateY: floatAnim.value },
+      ],
+    };
+  });
 
   const reproducirSonido = () => {
     //no reproducir si el audioPlayer no está listo o está reproduciendo
@@ -82,8 +95,8 @@ export default function App() {
       return;
     }
 
-    // velocidad de reproduccion aleatoria entre 0.6 y 1.6
-    const ratio = Math.random() * (1.6 - 0.6) + 0.6; 
+    // velocidad de reproduccion aleatoria entre 0.6 y 1.4
+    const ratio = Math.random() * (1.4 - 0.6) + 0.6; 
 
     audioPlayer.shouldCorrectPitch = false;
     audioPlayer.setPlaybackRate(ratio);
@@ -128,6 +141,10 @@ export default function App() {
 
         let damage = 0;
 
+
+        const ignorarGravedad =
+          (y > 1 || y < -1) && (x < 0.2 && x > -0.2);
+
         const isStrongShake =
           y >= 1.8 || y <= -1.8 || x >= 1.8 || x <= -1.8;
 
@@ -138,7 +155,7 @@ export default function App() {
         
 
         // si se agita
-        if (isShakingNow) {
+        if (isShakingNow && !ignorarGravedad) {
           if (!isShakingRef.current) {
             isShakingRef.current = true;
             setIsShaking(true);
@@ -163,10 +180,14 @@ export default function App() {
           setHp((prevHP) => {
             const newHP = prevHP - damage;
 
-            // actualizar frame cada 6 puntos de HP
-            const frameIndex = Math.floor((30 - newHP) / 6);
-            setFrame(frameIndex < frames.length ? frameIndex : frames.length - 1);
-
+            // cambiar entre el primer y segundo frame mientras se agita
+            if (newHP > 8) {
+              setFrame((prevFrame) => (prevFrame === 0 ? 1 : 0)); // galleta cerrada
+            }else if (newHP > 0) {
+              setFrame(2); // galleta casi abierta
+            }else {
+              setFrame(3); // galleta abierta
+            }
             return newHP;
           });
 
@@ -208,7 +229,7 @@ export default function App() {
     return () => { mounted = false; };
   }, [hp]);
 
-  if (hp <= 0) {
+  /*if (hp <= 0) {
     return (
       <View style={[styles.container, {backgroundColor: 'black'}]}>
         <Text style={{color: 'white', fontSize: 30, fontWeight: 'bold', textAlign: 'center', marginBottom: 12}}>
@@ -246,22 +267,20 @@ export default function App() {
         <StatusBar style="auto" />
       </View>
     );
-  }
+  }*/
 
   return (
     <View style={[styles.container, {backgroundColor: boxColor}]}>
       <Animated.View
-        style={{
-          transform: [{ translateX: shakeAnim }],
-        }}
+        style={
+          [animatedStyle]
+        }
       >
         <Image
           source={frames[frame]}
-          style={{ width: 200, height: 200 }}
+          style={{ width: 400, height: 400 }}
         />
       </Animated.View>
-
-      <Text>{hp} {"\n"}Prueba: Cuadrado que cambia de color al agitarse {frame}</Text>
       <View style={[styles.caja, { backgroundColor: boxColor }]}>
         <Text style={{ fontSize: 24, fontWeight: 'bold' }}> vida: {hp} </Text>
       </View>
@@ -274,6 +293,14 @@ export default function App() {
         onPress={() => {
           Accelerometer.removeAllListeners();
           setMotionData(null);
+        }}
+      />
+      <Button 
+        title="Reiniciar Galleta"
+        onPress={() => {
+          setHp(30);
+          setBoxColor('skyblue');
+          setFrame(0);
         }}
       />
       {motionData && <Text>Motion data received!</Text>}
