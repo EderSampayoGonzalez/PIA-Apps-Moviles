@@ -12,7 +12,12 @@ import Animated, { useSharedValue,
         withSequence,
         Easing } from 'react-native-reanimated';
 
-const cookieCrackSound = require('./assets/Galleta_rompiendo_1.wav');
+const cookieCrackSound = require('./assets/Galleta_rompiendo_1.mp3');
+
+// Paleta de colores de la aplicacion basada en el estado de la galleta
+const idleColor = '#81dcecff';
+const lightShakeColor = '#DEA47E';
+const strongShakeColor = '#CD4631';
 
 export default function App() {
   const [playing, setPlaying] = useState(false);
@@ -86,6 +91,15 @@ export default function App() {
         { translateX: shakeAnim.value },
         { translateY: floatAnim.value },
       ],
+    };
+  });
+
+  const brokenCookieStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateY: floatAnim.value },
+      ],
+      opacity: withTiming(hp <= 0 ? 1 : 0, { duration: 500 }),
     };
   });
 
@@ -165,13 +179,13 @@ export default function App() {
 
           // cambio color
           if (isStrongShake) {
-            setBoxColor('red');
+            setBoxColor(strongShakeColor);
             reproducirSonido();
             damage = 3;
           } 
 
           else if (isMediumShake) {
-            setBoxColor('orange');
+            setBoxColor(lightShakeColor);
             reproducirSonido();
             damage = 1;
           }
@@ -202,12 +216,19 @@ export default function App() {
         }
 
         // volver color normal
-        setBoxColor('skyblue');
+        setBoxColor(idleColor);
 
         setMotionData(data);
       });
     }
   };
+
+  //Iniciar la peticion de permisos al cargar la app
+  if (!motionData)
+  { 
+    requestPermissionAndStartListening();
+  }
+  
 
   // fetch a phrase when HP drops to 0 (or below)
   useEffect(() => {
@@ -229,19 +250,17 @@ export default function App() {
     return () => { mounted = false; };
   }, [hp]);
 
-  /*if (hp <= 0) {
+  if (hp <= 0) {
     return (
       <View style={[styles.container, {backgroundColor: 'black'}]}>
         <Text style={{color: 'white', fontSize: 30, fontWeight: 'bold', textAlign: 'center', marginBottom: 12}}>
           ¡La galleta de la fortuna se ha roto!
         </Text>
         <Animated.View
-          style={{
-            transform: [{ translateX: shakeAnim }],
-          }}
+          style={brokenCookieStyle}
         >
           <Image
-            source={frames[frame]}
+            source={frames[3]}
             style={{ width: 200, height: 200 }}
           />
         </Animated.View>
@@ -260,14 +279,14 @@ export default function App() {
           title="Reiniciar Galleta"
           onPress={() => {
             setHp(30);
-            setBoxColor('skyblue');
+            setBoxColor(idleColor);
             setFrame(0);
           }}
         />
         <StatusBar style="auto" />
       </View>
     );
-  }*/
+  }
 
   return (
     <View style={[styles.container, {backgroundColor: boxColor}]}>
@@ -284,27 +303,6 @@ export default function App() {
       <View style={[styles.caja, { backgroundColor: boxColor }]}>
         <Text style={{ fontSize: 24, fontWeight: 'bold' }}> vida: {hp} </Text>
       </View>
-      <Button 
-        title="Activar Acelerómetro" 
-        onPress={requestPermissionAndStartListening}
-      />
-      <Button
-        title="Desactivar Acelerómetro"
-        onPress={() => {
-          Accelerometer.removeAllListeners();
-          setMotionData(null);
-        }}
-      />
-      <Button 
-        title="Reiniciar Galleta"
-        onPress={() => {
-          setHp(30);
-          setBoxColor('skyblue');
-          setFrame(0);
-        }}
-      />
-      {motionData && <Text>Motion data received!</Text>}
-      <StatusBar style="auto" />
     </View>
   );
 }
